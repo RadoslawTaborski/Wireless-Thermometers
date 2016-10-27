@@ -131,7 +131,8 @@ int main(void) {
 			Rfm_stop();
 			//i czekamy przed kolejnym zapytaniem o temperaturê
 			timer0 = 0;
-			while (timer0 < 5000);
+			while (timer0 < 5000)
+				;
 		}
 
 		if (!(PIND & (1 << CLEAR))) {
@@ -238,11 +239,11 @@ int main(void) {
 	initRFM();//wstêpna konfiguracja uk³adu RFM12B
 	initUART(MYUBRR);
 
-			  // domyœlnie ka¿dy uk³ad powinien miec 0x00 w EEPROM
+				  // domyœlnie ka¿dy uk³ad powinien miec 0x00 w EEPROM
 	uint8_t address=getHexFromEeprom();
 
 	Rfm_xmit(SYNC_PATTERN | address);
-			  //ustawiamy programowalny bajt synchronizacji
+				  //ustawiamy programowalny bajt synchronizacji
 
 	TCCR1B |= (1 << WGM12) | (1 << CS10) | (1 << CS12);//timer 1 - tryb ctc - /1024
 	OCR1A = 11800;//wartoœæ dla przerwania co oko³o 755ms
@@ -326,7 +327,7 @@ int main(void) {
 				sprintf(bufor, "T.PRESENT");
 				//nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
 				Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor),
-						MASTER_ADDR);
+							MASTER_ADDR);
 
 				dallas_reset();
 				dallas_write_byte(SKIP_ROM_COMMAND);//pominiêcie weryfikacji numeru
@@ -342,7 +343,7 @@ int main(void) {
 				sprintf(bufor, "T.CRC8.ERR");
 
 				Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor),
-						MASTER_ADDR);
+							MASTER_ADDR);
 
 				dallas_reset();
 				dallas_write_byte(SKIP_ROM_COMMAND);//pominiêcie weryfikacji numeru
@@ -361,7 +362,7 @@ int main(void) {
 			temp_int = measure >> 4;
 			temp_fract = (measure & 0x000F) * 625;
 			sprintf(bufor, "%c%03d.%04d", subzero ? '-' : ' ', temp_int,
-					temp_fract);
+						temp_fract);
 
 			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), MASTER_ADDR);
 
