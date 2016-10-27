@@ -21,19 +21,11 @@
 char bufor_data[32];
 char bufor[65];
 uint8_t rx_buf[32];
-uint8_t buffer[9];
 uint8_t ok;
-uint16_t measure;
-uint8_t subzero;
-uint8_t temp_int;
-uint16_t temp_fract;
 volatile uint16_t timer0;
 
 ISR(TIMER0_COMPA_vect) { //przerwanie co ~1ms
 	timer0++;
-}
-ISR(TIMER1_COMPA_vect) {				//przerwanie co ~750ms
-	tick_flag = 1;				//ustawia flagê odmierzenia tego czasu
 }
 
 #ifdef MASTER
@@ -213,6 +205,10 @@ int main(void) {
 
 volatile uint8_t tick_flag = 0;
 
+ISR(TIMER1_COMPA_vect) {				//przerwanie co ~750ms
+	tick_flag = 1;				//ustawia flagê odmierzenia tego czasu
+}
+
 int main(void) {
 	setAllPins();
 	initTactSwitchResetEeprom();
@@ -221,7 +217,7 @@ int main(void) {
 	initUART(MYUBRR);
 	initCtcTimer1(11800);
 	initCtcTimer0(16);
-	void initDS18B20();
+	resetDS18B20();
 
 	uint8_t address = getHexFromEeprom();			// domyœlnie ka¿dy uk³ad powinien miec 0x00 w EEPROM
 
@@ -234,7 +230,6 @@ int main(void) {
 
 	while (1) {
 		uint8_t tmp;
-		//odbieramy dane w znany nam sposób
 
 		if (clickedSwitch(CLEAN)) {
 			writeStringToEeprom("00");
@@ -245,8 +240,7 @@ int main(void) {
 
 		switch (Rfm_state_check()) {
 			case RFM_RXC:
-				Rfm_rx_get(rx_buf, &tmp);
-				//tu sprawdzamy poprawnoœæ crc odebranej ramki
+				Rfm_rx_get(rx_buf, &tmp); //tu sprawdzamy poprawnoœæ crc odebranej ramki
 				ok = Rfm_rx_frame_good(rx_buf, &tmp, address);
 				if (ok) {
 					//i jeœli prawid³owa to czy zawiera zapytanie o temperaturê (znak T)
@@ -285,53 +279,11 @@ int main(void) {
 		cli();
 		if (tick_flag) {				//wykonamy te instrukcje co 750ms
 			tick_flag = 0;
-			ok = dallas_reset();				//reset magistrali 1-wire
-			if (!ok) {				//jeœli nie odpowiedzia³ ¿aden termometr to wyœwietlamy informacjê
-				//w ka¿dej sytuacji przygotowujemy stosown¹ informacjê
-				sprintf(bufor, "T.PRESENT");
-				//nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
-				Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor),
-				MASTER_ADDR);
-
-				dallas_reset();
-				dallas_write_byte(SKIP_ROM_COMMAND);				//pominiêcie weryfikacji numeru
-				dallas_write_byte(CONVERT_T_COMMAND);				//zlecamy konwersjê temperatury
+			ok = temperatureMeasurment(bufor);
+			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), MASTER_ADDR); //nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
+			if (!ok) {
 				continue;
 			}
-
-			dallas_reset();				//reset magistrali 1-wire
-			dallas_write_byte(SKIP_ROM_COMMAND);				//pominiêcie weryfikacji numeru
-			dallas_write_byte(READ_SCRATCHPAD_COMMAND);				//zlecamy odczyt danych
-			dallas_read_buffer(buffer, 9);				//odczytujemy dane z termometru
-			if (buffer[8] != crc8(buffer, 8)) {	//sprawdzamy sumê kontroln¹ odczytu
-				sprintf(bufor, "T.CRC8.ERR");
-
-				Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor),
-				MASTER_ADDR);
-
-				dallas_reset();
-				dallas_write_byte(SKIP_ROM_COMMAND);	//pominiêcie weryfikacji numeru
-				dallas_write_byte(CONVERT_T_COMMAND);	//zlecamy konwersjê temperatury
-				continue;
-			}
-			measure = (uint16_t) buffer[0] + (((uint16_t) buffer[1]) << 8);	//³¹czymy 2 bajty danych o temperaturze
-			if (measure & 0x8000) {	//jeœli wynik jest ujemny to zapisujemy informacjê o znaku i konwertujemy liczbê kodu U2 na dodatni¹
-				subzero = 1;
-				measure ^= 0xFFFF;
-				measure += 1;
-			} else {
-				subzero = 0;
-			}
-			//rozdzielamy liczbê na czêœæ ca³kowit¹ i u³amkow¹
-			temp_int = measure >> 4;
-			temp_fract = (measure & 0x000F) * 625;
-			sprintf(bufor, "%c%03d.%04d", subzero ? '-' : ' ', temp_int, temp_fract);
-
-			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), MASTER_ADDR);
-
-			dallas_reset();
-			dallas_write_byte(SKIP_ROM_COMMAND);	//pominiêcie weryfikacji numeru
-			dallas_write_byte(CONVERT_T_COMMAND);	//zlecamy konwersjê temperatury
 		}
 		sei();
 	}

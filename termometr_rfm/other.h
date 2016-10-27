@@ -12,14 +12,16 @@
 #include <avr/eeprom.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "uart.h"
 #include "dallas_one_wire.h"
-
+#include "crc8.h"
 
 uint8_t * createAddressArray(uint8_t size);
-char * addSensor(uint8_t *array, uint8_t size);
+char* addSensor(uint8_t *array, uint8_t size);
 void setAllPins();
-char *uintToString(uint8_t address);
-void initDS18B20();
+char* uintToString(uint8_t address);
+void resetDS18B20();
+uint8_t temperatureMeasurment(char * bufor);
 
 #endif /* OTHER_H_ */
