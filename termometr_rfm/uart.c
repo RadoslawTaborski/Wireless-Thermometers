@@ -1,6 +1,6 @@
 #include"uart.h"
 
-void init_uart(unsigned int baud_rate)
+void initUART(unsigned int baud_rate)
 {
 	UBRR0H = (unsigned char)(baud_rate >> 8);
 	UBRR0L = (unsigned char) baud_rate; // ustawienie Baud Rate
@@ -9,20 +9,20 @@ void init_uart(unsigned int baud_rate)
 	UCSR0C = 1<<UCSZ00 | 1 <<UCSZ01; // dlugosc slowa 8 bitow, domyslnie 1 bit stop
 }
 
-void uart_send(unsigned char data)
+void uartSend(unsigned char data)
 {
 	while (!(UCSR0A & (1 << UDRE0))); // czeka az zwolni sie bufor nadajnika
 
 	UDR0 = data; // umieszcza dana w buforze i ja wysyla
 }
 
-void uart_send_s(char *s)	// wysyla lancuch z pamiêci RAM na UART
+void uartSendString(char *s)	// wysyla lancuch z pamiêci RAM na UART
 {
   register char c;
-  while ((c = *s++)) uart_send(c);		// dopoki nie napotka 0 wysyla znak
+  while ((c = *s++)) uartSend(c);		// dopoki nie napotka 0 wysyla znak
 }
 
-unsigned char uart_get()
+unsigned char uartGet()
 {
 	while (!(UCSR0A & (1 << RXC0))); //czeka az pojawi sie dana do odbioru
 	return UDR0; // odbiera dana

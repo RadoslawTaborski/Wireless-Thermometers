@@ -53,11 +53,11 @@ typedef enum{
 	RFM_TXOVF,//nadpisanie bufora nadawczego
 } rfm_state_t;
 
-void Rfm_spi_init(void);
+void initSPI(void);
 
 uint16_t Rfm_xmit(uint16_t data);
 
-void Rfm_init(void);
+void initRFM(void);
 
 uint8_t Rfm_ready_wait(void);
 

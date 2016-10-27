@@ -20,7 +20,7 @@ volatile char RFM_TX_BUF[RFM_BUFFER_SIZE+5];
 volatile uint8_t rfm_tx_h=0;
 volatile uint8_t rfm_tx_t=0;
 
-void Rfm_spi_init(void){
+void initSPI(void){
 	SPI_DDR &= ~(1<<SPI_MISO);
 	SPI_DDR |= (1<<SPI_SCK)|(1<<SPI_MOSI)|(1<<SPI_SS);//konfiguracja kierunku i podcigania linii SPI
 	SPI_PORT |= (1<<SPI_MISO);
@@ -55,7 +55,7 @@ uint16_t Rfm_xmit(uint16_t data){
 	return( (((uint16_t)msb)<<8)+((uint16_t)lsb) );
 }
 
-void Rfm_init(void){
+void initRFM(void){
 	Rfm_xmit(SW_RESET);//resetujê programowo uk³ad RFM12B
 	_delay_ms(250);
 
