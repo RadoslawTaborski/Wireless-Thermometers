@@ -11,7 +11,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-void initCtcTimer0(uint8_t val);
-//void Pause(uint8_t ms);
+extern volatile uint16_t timer0;
+
+void initCtcTimer0(uint16_t val);
+void initCtcTimer1(uint16_t val);
+void pause(uint16_t ms);
 
 #endif /* TIMERS_H_ */

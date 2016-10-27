@@ -9,11 +9,13 @@
 #define TACTSWITCHES_H_
 
 #include <avr/io.h>
+#include <util/delay.h>
+#include "timers.h"
 
-#define ADD_SENSOR PD7
-#define CLEAR PD6
+#define ADD_SENSOR (1<<PD7)
+#define CLEAN (1<<PD6)
 
-//uint8_t ClickedSwitch(uint8_t button);
+uint8_t clickedSwitch(uint8_t button);
 void initTactSwitchResetEeprom();
 void initTactSwitchAddSensor();
 

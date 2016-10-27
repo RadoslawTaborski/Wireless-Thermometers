@@ -8,21 +8,21 @@
 
 void initTactSwitchResetEeprom()
 {
-	DDRD &= ~(1<<CLEAR);
-	PORTD |= (1<<CLEAR);
+	DDRD &= ~CLEAN;
+	PORTD |= CLEAN;
 }
 
 void initTactSwitchAddSensor()
 {
-	DDRD &= ~(1<<ADD_SENSOR);
-	PORTD |= (1<<ADD_SENSOR);
+	DDRD &= ~ADD_SENSOR;
+	PORTD |= ADD_SENSOR;
 }
 
-/*uint8_t ClickedSwitch(uint8_t button){
+uint8_t clickedSwitch(uint8_t button){
 	if(! (PIND & button))
 	{
-		Pause(80);
+		pause(80);
 		if(! (PIND & button)) return 1;
 	}
 	return 0;
-}*/
+}

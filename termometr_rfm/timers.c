@@ -7,10 +7,21 @@
 
 #include "timers.h"
 
-void initCtcTimer0(uint8_t val)
-{
+void initCtcTimer0(uint16_t val) {
 	TCCR0A |= (1 << WGM01);
 	TCCR0B |= (1 << CS02) | (1 << CS00);
 	OCR0A = val;
 	TIMSK0 |= _BV(OCIE0A);
+}
+
+void initCtcTimer1(uint16_t val) {
+	TCCR1B |= (1 << WGM12) | (1 << CS10) | (1 << CS12); //timer 1 - tryb ctc - /1024
+	OCR1A = val; //wartoœæ dla przerwania co oko³o 755ms
+	TIMSK1 |= (1 << OCIE1A); //zezwolenie na przerwanie od ocr1A
+}
+
+void pause(uint16_t ms) {
+	timer0 = 0;
+	while (timer0 < ms)
+		;
 }

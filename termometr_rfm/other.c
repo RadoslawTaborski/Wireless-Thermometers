@@ -59,3 +59,11 @@ char *uintToString(uint8_t address) {
 
 	return result;
 }
+
+void initDS18B20()
+{
+	//wywo³ujemy funkcjê pomiaru temperatury
+	dallas_reset(); //reset magistrali 1-wire
+	dallas_write_byte(SKIP_ROM_COMMAND); //pominiêcie weryfikacji numeru
+	dallas_write_byte(CONVERT_T_COMMAND); //zlecamy konwersjê temperatury
+}
