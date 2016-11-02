@@ -46,6 +46,7 @@ int main(void) {
 	uint8_t *sensorsAddresses = createAddressArray(size);
 	uint8_t cur_meas = 0; //zmienna informuj¹ca o aktualnie wybranym uk³adzie
 	uint8_t option = 0;
+	uint8_t address = 0;
 	Rfm_xmit(SYNC_PATTERN | MASTER_ADDR); //ustawiamy programowalny bajt synchronizacji
 
 	sei();
@@ -58,9 +59,10 @@ int main(void) {
 			char *pText;
 			pText = addSensor(sensorsAddresses, size);
 			pause(500);
-			sprintf(bufor, "%s", pText);
+			sprintf(bufor, "N%s", pText);
 			option = 1;
-		} else if (clickedSwitch(CLEAN)) {
+			address = 0x00;
+		} else if (clickedSwitch(CLEAN) && size != 0) {
 			writeStringToEeprom("00");
 			size = getHexFromEeprom();
 			cur_meas = 0;
@@ -79,14 +81,16 @@ int main(void) {
 			bufor[0] = 'T';
 			bufor[1] = 0;
 			option = 3;
+			address = sensorsAddresses[cur_meas];
+		} else {
+			continue;
 		}
 
+		Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), address);
+		sendRFM12B(address, bufor);
+		Rfm_rx_prepare();
 		//sprintf(text, "\r\nDODAWANIE CZUJNIKA: %s\r\n", bufor);
 		//uartSendString(text);
-		Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), 0x00);
-		sendRFM12B(0x00, bufor);
-		Rfm_rx_prepare();
-
 		uint8_t timeout = TIMEOUT
 		;
 		//sprawdzam czy wartoœæ jest wiêksza od 1 - dziêki temu jeœli po zakoñczeniu pêtli wartoœæ
@@ -108,14 +112,15 @@ int main(void) {
 							char* n_size;
 							n_size = uintToString(size);
 							writeStringToEeprom(n_size);
-							sprintf(bufor, "Dodano nowy czujnik: %d: \r\n", cur_meas + 1);
+							sprintf(bufor, "Dodano nowy czujnik: %d\r\n", size);
 							uartSendString(bufor);
 							break;
 						case 3:
-							sprintf(bufor, "Adres: %d Temperatura: \r\n", cur_meas + 1);
-							uartSendString(bufor);
 							rx_buf[tmp] = 0;
-							uartSendString((char*) rx_buf);
+							sprintf(bufor, "Adres: %d Temperatura:%s \r\n", cur_meas + 1, (char*) rx_buf);
+							uartSendString(bufor);
+							break;
+						default:
 							break;
 					}
 				}
@@ -137,11 +142,15 @@ int main(void) {
 				case 3:
 					sprintf(bufor, "Adres: %d - BRAK ODPOWIEDZI\r\n", cur_meas + 1);
 					break;
+				default:
+					break;
 			}
 			uartSendString(bufor);
 		}
 		//wy³¹czamy odbiornik
 		Rfm_stop();
+		bufor[0] = 0;
+		option = 0;
 		//i czekamy przed kolejnym zapytaniem o temperaturê
 		pause(1000);
 	}
@@ -181,7 +190,7 @@ int main(void) {
 	while (1) {
 		uint8_t tmp;
 
-		if (clickedSwitch(CLEAN)) {
+		if (clickedSwitch(CLEAN)&&address!=0x00) {
 			writeStringToEeprom("00");
 			address = 0x00;
 			pause(200);
