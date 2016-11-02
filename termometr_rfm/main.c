@@ -217,9 +217,6 @@ int main(void) {
 			tick_flag = 0;
 			ok = temperatureMeasurment(bufor);
 			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), MASTER_ADDR);//nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
-			if (!ok) { //TODO: sprawdzic czy potrzebne
-				continue;
-			}
 		}
 		sei();
 	}
