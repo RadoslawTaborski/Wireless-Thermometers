@@ -106,3 +106,10 @@ uint8_t temperatureMeasurment(char * bufor) {
 
 	return 1;
 }
+
+void sendRFM12B(uint8_t address, char * bufor) {
+	Rfm_tx_set((uint8_t*) bufor, strlen(bufor), address);
+	Rfm_tx_start();
+	while (Rfm_state_check() == RFM_TX)
+		;
+}

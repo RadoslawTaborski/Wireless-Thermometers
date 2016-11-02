@@ -13,8 +13,8 @@
 #include "eeprom.h"
 #include "timers.h"
 
-//#define MASTER
-#define SLAVE
+#define MASTER
+//#define SLAVE
 #define TIMEOUT 200; //ustawiamy zmienn¹ z wartoœci¹ timeout'u - czasu po którym uznamy, ¿e urz¹dzenie nie odpowiada
 #define MASTER_ADDR 0xFF //adres uk³adu master
 
@@ -34,23 +34,23 @@ ISR(TIMER0_COMPA_vect) { //przerwanie co ~1ms
 //--------------------------------------------------------------------------------------------------------
 int main(void) {
 	//setAllPins();
-	initUART(MYUBRR);//inicjalizacja USART
+	initUART(MYUBRR); //inicjalizacja USART
 	initTactSwitchAddSensor();
 	initTactSwitchResetEeprom();
-	initSPI();//inicjalizacja magistrali SPI
-	initRFM();//inicjalizacja uk³ad RFM12B
-	initCtcTimer0(16);//inicjalizacja timera0 w trybie CTC, czas przerwania ~1ms;
+	initSPI(); //inicjalizacja magistrali SPI
+	initRFM(); //inicjalizacja uk³ad RFM12B
+	initCtcTimer0(16); //inicjalizacja timera0 w trybie CTC, czas przerwania ~1ms;
 
 	char text[100];
 	uint8_t size = getHexFromEeprom();
 	uint8_t *sensorsAddresses = createAddressArray(size);
-	uint8_t cur_meas = 0;//zmienna informuj¹ca o aktualnie wybranym uk³adzie
+	uint8_t cur_meas = 0; //zmienna informuj¹ca o aktualnie wybranym uk³adzie
 
-	Rfm_xmit(SYNC_PATTERN | MASTER_ADDR);//ustawiamy programowalny bajt synchronizacji
+	Rfm_xmit(SYNC_PATTERN | MASTER_ADDR); //ustawiamy programowalny bajt synchronizacji
 
 	sei();
 	//w³¹czamy przerwania
-	uartSendString("\r\n\r\nRFM12B - MASTER\r\n");//wyœwietlamy powitanie
+	uartSendString("\r\n\r\nRFM12B - MASTER\r\n"); //wyœwietlamy powitanie
 
 	while (1) {
 		//za ka¿dym razem zmieniamy aktywny uk³ad.
@@ -58,18 +58,14 @@ int main(void) {
 			char *pText;
 			pText = addSensor(sensorsAddresses, size);
 			pause(500);
-			sprintf(bufor,"N%s",pText);
-			sprintf(text, "\r\nDODAWANIE CZUJNIKA: %s\r\n", bufor);
-			uartSendString(text);
-
+			sprintf(bufor, "%s", pText);
+			//sprintf(text, "\r\nDODAWANIE CZUJNIKA: %s\r\n", bufor);
+			//uartSendString(text);
 			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), 0x00);
-			Rfm_tx_set((uint8_t*) bufor, strlen(bufor), 0x00);
-			Rfm_tx_start();
-			while (Rfm_state_check() == RFM_TX);
+			sendRFM12B(0x00, bufor);
 			Rfm_rx_prepare();
 
-			uint8_t timeout = TIMEOUT
-			;
+			uint8_t timeout = TIMEOUT;
 			//sprawdzam czy wartoœæ jest wiêksza od 1 - dziêki temu jeœli po zakoñczeniu pêtli wartoœæ
 			//timeout==1 to znaczy, ¿e uk³ad nie odpowiedzia³
 			while (timeout > 1) {
@@ -84,19 +80,12 @@ int main(void) {
 					//wyœwietlamy dane
 					if (ok) {
 						size++;
-						char n_size[3];
-						itoa(size, n_size, 16);
-						if (size < 0x10) {
-							char s[3] = "0";
-							strcat(s, n_size);
-							strncpy(n_size, s, 3);
-						}
+						char* n_size;
+						n_size=uintToString(size);
 						writeStringToEeprom(n_size);
-						sprintf(bufor, "%d: DODANO CZUJNIK", cur_meas + 1);
+						sprintf(bufor, "Dodano nowy czujnik: %d: \r\n", cur_meas + 1);
 						uartSendString(bufor);
-						//i informacjê o zgodnoœci sumy kontrolnej (normalnie danych ze z³ym crc wogóle byœmy nie obs³ugiwali)
 					}
-					uartSendString("\r\n");
 					//ustawiamy timeout na wartoœæ 1...
 					timeout = 1;
 				}
@@ -108,7 +97,7 @@ int main(void) {
 			}
 			//tu sprawdzamy, czy dane zosta³y odebrane, czy te¿ nie by³o odpowiedzi i wyœwietlamy wtedy stosowny komunikat
 			if (timeout == 1) {
-				sprintf(bufor, "%d: BLAD DODANIA\r\n", cur_meas + 1);
+				sprintf(bufor, "Adres: %d - BLAD DODANIA\r\n", cur_meas + 1);
 				uartSendString(bufor);
 			}
 			//wy³¹czamy odbiornik
@@ -130,31 +119,20 @@ int main(void) {
 
 		if (size > 0) {
 			if (cur_meas == size - 1)
-			cur_meas = 0;
+				cur_meas = 0;
 			else
-			cur_meas++;
+				cur_meas++;
 
 			//przygotowujemy i wysy³amy zapytanie o temperaturê do jednego z uk³adów
 			bufor[0] = 'T';
 			bufor[1] = 0;
-			//uart_send_s(" 1\r\n ");
-			//to nowa funkcja, która dodaje do danych sumê kontroln¹ CRC
-			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), sensorsAddresses[cur_meas]);
-			//uart_send_s(" 2\r\n ");
-			//wysy³anie ju¿ znamy
-			Rfm_tx_set((uint8_t*) bufor, strlen(bufor), sensorsAddresses[cur_meas]);
-			//uart_send_s(" 3\r\n ");
-			Rfm_tx_start();
-			//uart_send_s(" 4\r\n ");
-			while (Rfm_state_check() == RFM_TX)
-			;
-			//uart_send_s(" 5\r\n ");
-			//po wys³aniu przygotowujemy siê do odczytu
-			Rfm_rx_prepare();
-			//uart_send_s(" 6\r\n ");
+
+			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), sensorsAddresses[cur_meas]); //dodanie do ramki sumy kontrolnej
+			sendRFM12B(sensorsAddresses[cur_meas],bufor);
+			Rfm_rx_prepare(); //po wys³aniu przygotowujemy siê do odczytu
 
 			//ustawiamy zmienn¹ z wartoœci¹ timeout'u - czasu po którym uznamy, ¿e urz¹dzenie nie odpowiada
-			uint8_t timeout = 200;
+			uint8_t timeout = TIMEOUT;
 
 			//sprawdzam czy wartoœæ jest wiêksza od 1 - dziêki temu jeœli po zakoñczeniu pêtli wartoœæ
 			//timeout==1 to znaczy, ¿e uk³ad nie odpowiedzia³
@@ -165,17 +143,15 @@ int main(void) {
 
 					Rfm_rx_get(rx_buf, &tmp);
 					Rfm_rx_prepare();
-					//tu kolejna funkcja, która sprawdza crc odebranych danych, wraz z adresem docelowym
-					ok = Rfm_rx_frame_good(rx_buf, &tmp, MASTER_ADDR);
+					ok = Rfm_rx_frame_good(rx_buf, &tmp, MASTER_ADDR);//tu kolejna funkcja, która sprawdza crc odebranych danych, wraz z adresem docelowym
 					//wyœwietlamy dane
 					if (ok) {
-						sprintf(bufor, "%d: ", cur_meas + 1);
+						sprintf(bufor, "Adres: %d Temperatura: \r\n", cur_meas + 1);
 						uartSendString(bufor);
 						rx_buf[tmp] = 0;
 						uartSendString((char*) rx_buf);
 						//i informacjê o zgodnoœci sumy kontrolnej (normalnie danych ze z³ym crc wogóle byœmy nie obs³ugiwali)
 					}
-					uartSendString("\r\n");
 					//ustawiamy timeout na wartoœæ 1...
 					timeout = 1;
 				}
@@ -187,7 +163,7 @@ int main(void) {
 			}
 			//tu sprawdzamy, czy dane zosta³y odebrane, czy te¿ nie by³o odpowiedzi i wyœwietlamy wtedy stosowny komunikat
 			if (timeout == 1) {
-				sprintf(bufor, "%d: BRAK ODPOWIEDZI\r\n", cur_meas + 1); // TODO: chyba niepotrzebne
+				sprintf(bufor, "Adres: %d - BRAK ODPOWIEDZI\r\n", cur_meas + 1); // TODO: chyba niepotrzebne
 				uartSendString(bufor);
 			}
 			//wy³¹czamy odbiornik
@@ -206,27 +182,27 @@ int main(void) {
 volatile uint8_t tick_flag = 0;
 
 ISR(TIMER1_COMPA_vect) {				//przerwanie co ~750ms
-	tick_flag = 1;				//ustawia flagê odmierzenia tego czasu
+	tick_flag = 1;//ustawia flagê odmierzenia tego czasu
 }
 
 int main(void) {
 	setAllPins();
 	initTactSwitchResetEeprom();
 	initSPI();			//inicjalizacja magistrali SPI
-	initRFM();			//wstêpna konfiguracja uk³adu RFM12B
+	initRFM();//wstêpna konfiguracja uk³adu RFM12B
 	initUART(MYUBRR);
 	initCtcTimer1(11800);
 	initCtcTimer0(16);
 	resetDS18B20();
 
-	uint8_t address = getHexFromEeprom();			// domyœlnie ka¿dy uk³ad powinien miec 0x00 w EEPROM
+	uint8_t address = getHexFromEeprom();// domyœlnie ka¿dy uk³ad powinien miec 0x00 w EEPROM
 
-	Rfm_xmit(SYNC_PATTERN | address); //ustawiamy programowalny bajt synchronizacji
+	Rfm_xmit(SYNC_PATTERN | address);//ustawiamy programowalny bajt synchronizacji
 	Rfm_rx_prepare();
 
 	sei();
 	//w³¹czamy gobalny system przerwañ.
-	uartSendString("\r\n\r\nRFM12B - SLAVE\r\n"); //wyœwietlamy powitanie
+	uartSendString("\r\n\r\nRFM12B - SLAVE\r\n");//wyœwietlamy powitanie
 
 	while (1) {
 		uint8_t tmp;
@@ -240,48 +216,40 @@ int main(void) {
 
 		switch (Rfm_state_check()) {
 			case RFM_RXC:
-				Rfm_rx_get(rx_buf, &tmp); //tu sprawdzamy poprawnoœæ crc odebranej ramki
-				ok = Rfm_rx_frame_good(rx_buf, &tmp, address);
-				if (ok) {
-					//i jeœli prawid³owa to czy zawiera zapytanie o temperaturê (znak T)
-					if (rx_buf[0] == 'T') {
-						uartSendString(bufor);
-						pause(5); //czekamy nieco - master musi przestawiæ siê na odbiór
-						//i nadajemy ostatnio przygotowan¹ ramkê
-						Rfm_tx_set((uint8_t*) bufor, strlen(bufor), MASTER_ADDR);
-						Rfm_tx_start();
-						while (Rfm_state_check() == RFM_TX)
-							;
-					}
-					if (rx_buf[0] == 'N') {
-						pause(5);					//czekamy nieco - master musi przestawiæ siê na odbiór
-						char newAddress[3];
-						sprintf(newAddress, "%s", (rx_buf + 1));
-						writeStringToEeprom(newAddress);
-						address = (uint8_t) strtol(newAddress, NULL, 16);
-
-						Rfm_tx_set((uint8_t*) bufor, strlen(bufor), MASTER_ADDR);
-						Rfm_tx_start();
-						while (Rfm_state_check() == RFM_TX)
-							;
-					}
+			Rfm_rx_get(rx_buf, &tmp); //tu sprawdzamy poprawnoœæ crc odebranej ramki
+			ok = Rfm_rx_frame_good(rx_buf, &tmp, address);
+			if (ok) {
+				//i jeœli prawid³owa to czy zawiera zapytanie o temperaturê (znak T)
+				if (rx_buf[0] == 'T') {
+					uartSendString(bufor);
+					pause(5); //czekamy nieco - master musi przestawiæ siê na odbiór
+					//i nadajemy ostatnio przygotowan¹ ramkê
+					sendRFM12B(MASTER_ADDR, bufor);
 				}
-				Rfm_rx_prepare();
-				break;
+				if (rx_buf[0] == 'N') {
+					pause(5);					//czekamy nieco - master musi przestawiæ siê na odbiór
+					char newAddress[3];
+					sprintf(newAddress, "%s", (rx_buf + 1));
+					writeStringToEeprom(newAddress);
+					address = (uint8_t) strtol(newAddress, NULL, 16);
+					sendRFM12B(MASTER_ADDR, bufor);
+				}
+			}
+			Rfm_rx_prepare();
+			break;
 			case RFM_RXOVF:
-				Rfm_rx_prepare();
-				break;
+			Rfm_rx_prepare();
+			break;
 			default:
-				break;
+			break;
 		}
 
-		//przerwania wy³¹czamy na czas komunikacji 1-wire
-		cli();
+		cli(); //przerwania wy³¹czamy na czas komunikacji 1-wire
 		if (tick_flag) {				//wykonamy te instrukcje co 750ms
 			tick_flag = 0;
 			ok = temperatureMeasurment(bufor);
-			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), MASTER_ADDR); //nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
-			if (!ok) {
+			Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), MASTER_ADDR);//nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
+			if (!ok) { //TODO: sprawdzic czy potrzebne
 				continue;
 			}
 		}
