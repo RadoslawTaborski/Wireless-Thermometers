@@ -61,7 +61,7 @@ int main(void) {
 			Rfm_rx_get(rx_buf, &length); //tu sprawdzamy poprawnoœæ crc odebranej ramki
 			ok = Rfm_rx_frame_good(rx_buf, &length, MASTER_ADDR);
 			if (ok) {
-				char strAddress[3]={0};
+				char strAddress[3]= {0};
 				rx_buf[length] = 0;
 				strncpy(strAddress,(char*)rx_buf,2);
 				strAddress[2]=0;
@@ -102,6 +102,7 @@ int main(void) {
 	resetDS18B20();
 
 	uint8_t address = getHexFromEeprom(); // domyœlnie ka¿dy uk³ad powinien miec 0x00 w EEPROM
+	char *strAddress=uintToString(address);
 
 	Rfm_xmit(SYNC_PATTERN | address); //ustawiamy programowalny bajt synchronizacji
 	//Rfm_rx_prepare();
@@ -118,13 +119,16 @@ int main(void) {
 		}
 		sei();
 		if (ok) {
-			sprintf(newBufor,"%s%s",uintToString(address),bufor);
+			sprintf(newBufor, "%s%s", strAddress, bufor);
 			uartSendString(newBufor);
 			Rfm_tx_frame_prepare((uint8_t*) newBufor, strlen(newBufor), MASTER_ADDR); //nastêpnie przygotowujemy ramkê wraz z sum¹ CRC
 			sendRFM12B(MASTER_ADDR, newBufor);
 			Rfm_stop(); //wy³¹czamy odbiornik
 			pause(1000); //i czekamy przed kolejnym wys³aniem temperatury
 		}
+		ok = 0;
+		bufor[0] = 0;
+		newBufor[0] = 0;
 	}
 
 	return 0;
