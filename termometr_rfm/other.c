@@ -17,7 +17,7 @@ uint8_t * createAddressArray(uint8_t size) {
 	return array;
 }
 
-char * addSensor(uint8_t *array, uint8_t size) {
+char * addSensor(uint8_t *array, uint8_t size) { //TODO: coÅ› tu sie sypie, caÅ‚kiem moÅ¼liwe wycieki pamiÄ™ci :D
 	if (size == 0)
 		array[size] = 0x01;
 	else
@@ -30,9 +30,9 @@ char * addSensor(uint8_t *array, uint8_t size) {
 }
 
 /*
- * ustawienie pinów jako wyjœcia ze stanem
- * niskim lub wysokim powoduje ¿e nie dzia³aj¹ jak anteny
- * dodatkowo pod³¹cza restet do wewnêtrznego pull-upa
+ * ustawienie pinÃ³w jako wyjÅ›cia ze stanem
+ * niskim lub wysokim powoduje Å¼e nie dziaÅ‚ajÄ… jak anteny
+ * dodatkowo podÅ‚Ä…cza restet do wewnÄ™trznego pull-upa
  */
 void setAllPins() {
 	DDRB = 0x3F;
@@ -60,10 +60,10 @@ char *uintToString(uint8_t address) {
 }
 
 void resetDS18B20() {
-	//wywo³ujemy funkcjê pomiaru temperatury
+	//wywoÅ‚ujemy funkcjÄ™ pomiaru temperatury
 	dallas_reset(); //reset magistrali 1-wire
-	dallas_write_byte(SKIP_ROM_COMMAND); //pominiêcie weryfikacji numeru
-	dallas_write_byte(CONVERT_T_COMMAND); //zlecamy konwersjê temperatury
+	dallas_write_byte(SKIP_ROM_COMMAND); //pominiÄ™cie weryfikacji numeru
+	dallas_write_byte(CONVERT_T_COMMAND); //zlecamy konwersjÄ™ temperatury
 }
 
 uint8_t temperatureMeasurment(char * bufor) {
@@ -75,30 +75,30 @@ uint8_t temperatureMeasurment(char * bufor) {
 	uint8_t buffer[9];
 
 	ok = dallas_reset();				//reset magistrali 1-wire
-	if (!ok) {				//jeœli nie odpowiedzia³ termometr to wyœwietlamy informacjê
+	if (!ok) {				//jeÅ›li nie odpowiedziaÅ‚ termometr to wyÅ›wietlamy informacjÄ™
 		sprintf(bufor, "T.PRESENT");
 		resetDS18B20();
 		return 0;
 	}
 
 	dallas_reset();				//reset magistrali 1-wire
-	dallas_write_byte(SKIP_ROM_COMMAND);				//pominiêcie weryfikacji numeru
+	dallas_write_byte(SKIP_ROM_COMMAND);				//pominiÄ™cie weryfikacji numeru
 	dallas_write_byte(READ_SCRATCHPAD_COMMAND);				//zlecamy odczyt danych
 	dallas_read_buffer(buffer, 9);				//odczytujemy dane z termometru
-	if (buffer[8] != crc8(buffer, 8)) {	//sprawdzamy sumê kontroln¹ odczytu
+	if (buffer[8] != crc8(buffer, 8)) {	//sprawdzamy sumÄ™ kontrolnÄ… odczytu
 		sprintf(bufor, "T.CRC8.ERR");
 		resetDS18B20();
 		return 0;
 	}
-	measure = (uint16_t) buffer[0] + (((uint16_t) buffer[1]) << 8);	//³¹czymy 2 bajty danych o temperaturze
-	if (measure & 0x8000) {	//jeœli wynik jest ujemny to zapisujemy informacjê o znaku i konwertujemy liczbê kodu U2 na dodatni¹
+	measure = (uint16_t) buffer[0] + (((uint16_t) buffer[1]) << 8);	//Å‚Ä…czymy 2 bajty danych o temperaturze
+	if (measure & 0x8000) {	//jeÅ›li wynik jest ujemny to zapisujemy informacjÄ™ o znaku i konwertujemy liczbÄ™ kodu U2 na dodatniÄ…
 		subzero = 1;
 		measure ^= 0xFFFF;
 		measure += 1;
 	} else {
 		subzero = 0;
 	}
-	//rozdzielamy liczbê na czêœæ ca³kowit¹ i u³amkow¹
+	//rozdzielamy liczbÄ™ na czÄ™Å›Ä‡ caÅ‚kowitÄ… i uÅ‚amkowÄ…
 	temp_int = measure >> 4;
 	temp_fract = (measure & 0x000F) * 625;
 	sprintf(bufor, "%c%03d.%04d", subzero ? '-' : ' ', temp_int, temp_fract);
@@ -107,9 +107,55 @@ uint8_t temperatureMeasurment(char * bufor) {
 	return 1;
 }
 
-void sendRFM12B(uint8_t address, char * bufor) {
+void sendRFM12B(uint8_t address, char * bufor) { //TODO: dodaj Rfm_tx_frame_prepare
 	Rfm_tx_set((uint8_t*) bufor, strlen(bufor), address);
 	Rfm_tx_start();
 	while (Rfm_state_check() == RFM_TX)
 		;
+}
+
+void receiveRFM12B(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length) {
+	uint8_t ok = 0;
+	switch (Rfm_state_check()) {
+		case RFM_RXC:
+			Rfm_rx_get(rx_buf, length); //tu sprawdzamy poprawnosc crc odebranej ramki
+			ok = Rfm_rx_frame_good(rx_buf, length, receiverAddress);
+			if (!ok) { //i jezli prawidlowa to czy zawiera zapytanie o temperature (znak T)
+				//uartSendString("blad");
+				rx_buf[0] = 0;
+				length = 0;
+			}
+			Rfm_rx_prepare();
+			break;
+		case RFM_RXOVF:
+			Rfm_rx_prepare();
+			break;
+		default:
+			break;
+	}
+}
+
+uint8_t waitForReceive(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length, char sign, uint8_t timeout) {
+	uint8_t ok = 0;
+	while (timeout > 1) { //odbieramy dane w znany nam sposï¿½b
+		if (Rfm_state_check() == RFM_RXC) {
+			Rfm_rx_get(rx_buf, length);
+			Rfm_rx_prepare();
+			ok = Rfm_rx_frame_good(rx_buf, length, receiverAddress); //tu kolejna funkcja, ktï¿½ra sprawdza crc odebranych danych, wraz z adresem docelowym
+
+			if (ok) { //wyÅ›wietlamy dane
+				if (rx_buf[0] == sign) {
+					return 0;
+				}
+			}
+		}
+		timeout--;
+		//czekamy nieco miï¿½dzy kolejnym sprawdzeniem, czy dane nie nadeszï¿½y
+		pause(1);
+	}
+	//tu sprawdzamy, czy dane zostaï¿½y odebrane, czy teï¿½ nie byï¿½o odpowiedzi i wyï¿½wietlamy wtedy stosowny komunikat
+	//uartSendString("nie gra");
+	rx_buf[0] = 0;
+	(*length) = 0;
+	return 1;
 }
