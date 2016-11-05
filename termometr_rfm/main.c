@@ -13,7 +13,7 @@
 #include "eeprom.h"
 #include "timers.h"
 
-//#define MASTER
+#define MASTER
 #define SLAVE
 
 #define MASTER_ADDR 0xFF //adres układu master
@@ -44,7 +44,6 @@ int main(void) {
 	char text[100];
 	uint8_t size = getHexFromEeprom();
 	uint8_t *sensorsAddresses = createAddressArray(size);
-	//uint8_t cur_meas = 0; //zmienna informująca o aktualnie wybranym układzie
 	uint8_t address = 0;
 	uint8_t length = 0;
 
@@ -59,27 +58,22 @@ int main(void) {
 		if (clickedSwitch(CLEAN) && size != 0) {
 			writeStringToEeprom("00");
 			size = getHexFromEeprom();
-			//cur_meas = 0;
 			sprintf(text, "\r\nReset\r\nsize: %d\r\n", size);
 			uartSendString(text);
 			pause(200);
 		}
 
 		if (clickedSwitch(ADD_SENSOR)) {
-			uartSendString("click");
+			uartSendString("click\r\n");
 		}
-		//Rfm_rx_prepare();
+
 		receiveRFM12B(MASTER_ADDR, rx_buf, &length);
 		if (length != 0) {
 			if (rx_buf[0] == '?') {
 				char pText[3];
 				addSensor(sensorsAddresses, size, pText);
 				sprintf(bufor, "N%s", pText);
-				//uartSendString(bufor);
-				Rfm_stop();
-				Rfm_tx_frame_prepare((uint8_t*) bufor, strlen(bufor), 0x00);
 				sendRFM12B(0x00, bufor);
-				//Rfm_rx_prepare();
 				waitForReceive(MASTER_ADDR, rx_buf, &length, 'O', 500);
 				if (length != 0) {
 					char n_size[3];
@@ -140,7 +134,6 @@ int main(void) {
 	uint8_t length = 0;
 
 	Rfm_xmit(SYNC_PATTERN | address); //ustawiamy programowalny bajt synchronizacji
-//Rfm_rx_prepare();
 
 	sei();
 //włączamy gobalny system przerwań.
@@ -152,6 +145,7 @@ int main(void) {
 			Rfm_xmit(SYNC_PATTERN | address);
 			uintToString(address, strAddress);
 			uartSendString("reset\r\n");
+			pause(500);
 		}
 		cli();
 		//przerwania wyłączamy na czas komunikacji 1-wire
@@ -163,20 +157,16 @@ int main(void) {
 		if (ok && address != 0) {
 			sprintf(newBufor, "%s%s", strAddress, bufor);
 			uartSendString(newBufor);
-			Rfm_stop(); //wyłączamy odbiornik
-			Rfm_tx_frame_prepare((uint8_t*) newBufor, strlen(newBufor), MASTER_ADDR); //następnie przygotowujemy ramkę wraz z sumą CRC
+			uartSendString("\r\n");
 			sendRFM12B(MASTER_ADDR, newBufor);
-			Rfm_stop(); //wyłączamy odbiornik
 			pause(1000); //i czekamy przed kolejnym wysłaniem temperatury
 		}
 		ok = 0;
 		bufor[0] = 0;
 		newBufor[0] = 0;
+
 		if (address == 0x00) {
 			sprintf(newBufor, "?");
-			//uartSendString(newBufor);
-			Rfm_stop();
-			Rfm_tx_frame_prepare((uint8_t*) newBufor, strlen(newBufor), MASTER_ADDR); //następnie przygotowujemy ramkę wraz z sumą CRC
 			sendRFM12B(MASTER_ADDR, newBufor);
 			ok = waitForReceive(address, rx_buf, &length, 'N', 500);
 			if (ok) {
@@ -186,12 +176,8 @@ int main(void) {
 				address = (uint8_t) strtol(newAddress, NULL, 16);
 				uintToString(address, strAddress);
 				sprintf(newBufor, "O");
-				//uartSendString(newBufor);
-				Rfm_stop();
-				Rfm_tx_frame_prepare((uint8_t*) newBufor, strlen(newBufor), MASTER_ADDR); //następnie przygotowujemy ramkę wraz z sumą CRC
 				sendRFM12B(MASTER_ADDR, newBufor);
 				Rfm_xmit(SYNC_PATTERN | address);
-				rx_buf[0] = 0;
 				length = 0;
 				ok = 0;
 			}
