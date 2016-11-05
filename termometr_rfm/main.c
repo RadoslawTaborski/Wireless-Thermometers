@@ -63,13 +63,13 @@ int main(void) {
 			pause(200);
 		}
 
-		if (clickedSwitch(ADD_SENSOR)) {
+		/*if (clickedSwitch(ADD_SENSOR)) {
 			uartSendString("click\r\n");
-		}
+		}*/
 
 		receiveRFM12B(MASTER_ADDR, rx_buf, &length);
 		if (length != 0) {
-			if (rx_buf[0] == '?') {
+			if (rx_buf[0] == '?' && clickedSwitch(ADD_SENSOR)) {
 				char pText[3];
 				addSensor(sensorsAddresses, size, pText);
 				sprintf(bufor, "N%s", pText);
