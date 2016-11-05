@@ -17,16 +17,13 @@ uint8_t * createAddressArray(uint8_t size) {
 	return array;
 }
 
-char * addSensor(uint8_t *array, uint8_t size) { //TODO: coś tu sie sypie, całkiem możliwe wycieki pamięci :D
+void addSensor(uint8_t *array, uint8_t size, char *result) { //TODO: coś tu sie sypie, całkiem możliwe wycieki pamięci :D
 	if (size == 0)
 		array[size] = 0x01;
 	else
 		array[size] = array[size - 1] + 0x01;
 
-	char *result;
-	result = uintToString(array[size]);
-
-	return result;
+	uintToString(array[size],result);
 }
 
 /*
@@ -43,11 +40,11 @@ void setAllPins() {
 	PORTD = 0x00;
 }
 
-char *uintToString(uint8_t address) {
+void uintToString(uint8_t address,char * result) {
 	char str[4];
 	itoa(address, str, 16);
 
-	char *result = malloc(sizeof(char) * 3);
+	//char *result = malloc(sizeof(char) * 3);
 	itoa(address, result, 16);
 
 	if (address < 0x10) {
@@ -55,8 +52,6 @@ char *uintToString(uint8_t address) {
 		strcat(s, result);
 		strncpy(result, s, 3);
 	}
-
-	return result;
 }
 
 void resetDS18B20() {
@@ -123,7 +118,7 @@ void receiveRFM12B(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length) {
 			if (!ok) { //i jezli prawidlowa to czy zawiera zapytanie o temperature (znak T)
 				//uartSendString("blad");
 				rx_buf[0] = 0;
-				length = 0;
+				(*length) = 0;
 			}
 			Rfm_rx_prepare();
 			break;
@@ -135,17 +130,17 @@ void receiveRFM12B(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length) {
 	}
 }
 
-uint8_t waitForReceive(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length, char sign, uint8_t timeout) {
+uint8_t waitForReceive(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length, char sign, uint16_t timeout) {
 	uint8_t ok = 0;
+	Rfm_rx_prepare();
 	while (timeout > 1) { //odbieramy dane w znany nam spos�b
 		if (Rfm_state_check() == RFM_RXC) {
 			Rfm_rx_get(rx_buf, length);
-			Rfm_rx_prepare();
 			ok = Rfm_rx_frame_good(rx_buf, length, receiverAddress); //tu kolejna funkcja, kt�ra sprawdza crc odebranych danych, wraz z adresem docelowym
-
 			if (ok) { //wyświetlamy dane
 				if (rx_buf[0] == sign) {
-					return 0;
+					Rfm_stop();
+					return 1;
 				}
 			}
 		}
@@ -157,5 +152,6 @@ uint8_t waitForReceive(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length
 	//uartSendString("nie gra");
 	rx_buf[0] = 0;
 	(*length) = 0;
-	return 1;
+	Rfm_stop();
+	return 0;
 }

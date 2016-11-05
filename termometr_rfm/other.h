@@ -20,13 +20,13 @@
 #include "timers.h"
 
 uint8_t * createAddressArray(uint8_t size);
-char* addSensor(uint8_t *array, uint8_t size);
+void addSensor(uint8_t *array, uint8_t size,char *result);
 void setAllPins();
-char* uintToString(uint8_t address);
+void uintToString(uint8_t address,char * result);
 void resetDS18B20();
 uint8_t temperatureMeasurment(char * bufor);
 void sendRFM12B(uint8_t address, char * bufor);
 void receiveRFM12B(uint8_t address, uint8_t *rx_buf, uint8_t *length);
-uint8_t waitForReceive(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length, char sign, uint8_t timeout);
+uint8_t waitForReceive(uint8_t receiverAddress, uint8_t *rx_buf, uint8_t *length, char sign, uint16_t timeout);
 
 #endif /* OTHER_H_ */
