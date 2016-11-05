@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 
 #include "crc8.h"
 #include "dallas_one_wire.h"
@@ -14,11 +15,10 @@
 #include "timers.h"
 
 #define MASTER
-#define SLAVE
+//#define SLAVE
 
 #define MASTER_ADDR 0xFF //adres układu master
 
-//char bufor_data[32];
 char bufor[65];
 uint8_t rx_buf[32];
 uint8_t ok;
@@ -40,6 +40,9 @@ int main(void) {
 	initSPI();//inicjalizacja magistrali SPI
 	initRFM();//inicjalizacja układ RFM12B
 	initCtcTimer0(16);//inicjalizacja timera0 w trybie CTC, czas przerwania ~1ms;
+	 ACSR |= (1<<ACD);
+	 WDTCSR = 0x00;
+	 EICRA&= ~((1 << ISC01) | (1 << ISC00));
 
 	char text[100];
 	uint8_t size = getHexFromEeprom();
@@ -49,7 +52,7 @@ int main(void) {
 
 	Rfm_xmit(SYNC_PATTERN | MASTER_ADDR);//ustawiamy programowalny bajt synchronizacji
 	Rfm_rx_prepare();
-
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sei();
 	//włączamy przerwania
 	uartSendString("\r\n\r\nRFM12B - MASTER\r\n");//wyświetlamy powitanie
@@ -63,9 +66,17 @@ int main(void) {
 			pause(200);
 		}
 
-		/*if (clickedSwitch(ADD_SENSOR)) {
-			uartSendString("click\r\n");
-		}*/
+		if (clickedSwitch(ADD_SENSOR)) {
+			EIMSK |= (1 << INT0);
+			uartSendString("sleep\r\n");
+			pause(2);
+			//cli();
+			sleep_mode();
+			//EIMSK &= ~(1 << INT0);
+		    //sei();
+			uartSendString("pospane\r\n");
+		}
+		//uartSendString("wake up\r\n");
 
 		receiveRFM12B(MASTER_ADDR, rx_buf, &length);
 		if (length != 0) {
@@ -159,7 +170,7 @@ int main(void) {
 			uartSendString(newBufor);
 			uartSendString("\r\n");
 			sendRFM12B(MASTER_ADDR, newBufor);
-			pause(1000); //i czekamy przed kolejnym wysłaniem temperatury
+			pause(60000); //i czekamy przed kolejnym wysłaniem temperatury
 		}
 		ok = 0;
 		bufor[0] = 0;

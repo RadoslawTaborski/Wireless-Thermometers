@@ -152,10 +152,10 @@ void Rfm_tx_start(void){
 }
 
 ISR(INT0_vect){
+	//uartSendString("przerwanko\r\n");
 	//odczytujê status, aby na pewno zosta³a zwolniona linia przerwania
 	uint16_t status=Rfm_xmit(STATUS_READ);
 	//sprawdziæ czy to to przerwanie
-
 	if(status&(M_FIFO_IT|M_TX_READY)){//jeœli to przerwanie zosta³o wygenerowane
 
 		if(rfm_state==RFM_RX){//jeœli mamy odbieraæ dane
