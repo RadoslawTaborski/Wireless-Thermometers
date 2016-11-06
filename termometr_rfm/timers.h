@@ -13,7 +13,7 @@
 
 extern volatile uint16_t timer0;
 
-void initCtcTimer0(uint16_t val);
+void initCtcTimer0(uint8_t val);
 void initCtcTimer1(uint16_t val);
 void pause(uint16_t ms);
 

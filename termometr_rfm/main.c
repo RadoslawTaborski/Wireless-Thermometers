@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
+#include <avr/wdt.h>
 
 #include "crc8.h"
 #include "dallas_one_wire.h"
@@ -14,6 +15,21 @@
 #include "eeprom.h"
 #include "timers.h"
 
+#define WDIFr
+
+#ifdef WDIFr
+static void __init3(void) __attribute__ (( section( ".init3" ), naked, used ));
+static void __init3(void) {
+	// wyłączenie watchdoga (w tych mikrokontrolerach, w których watchdog
+	// ma możliwość generowania przerwania pozostaje on też aktywny po
+	// resecie)
+
+	MCUSR = 0;
+	WDTCSR = (1 << WDCE) | (1 << WDE);
+	WDTCSR = 0;
+}
+#endif
+
 #define MASTER
 //#define SLAVE
 
@@ -22,10 +38,38 @@
 char bufor[65];
 uint8_t rx_buf[32];
 uint8_t ok;
-volatile uint16_t timer0;
+volatile uint16_t timer0, timerWD;
 
 ISR(TIMER0_COMPA_vect) { //przerwanie co ~1ms
 	timer0++;
+	timerWD++;
+}
+
+ISR(WDT_vect) {
+	wdt_disable();
+}
+
+enum {
+	PAUSE_1S = 0b000110, PAUSE_2S = 0b000111, PAUSE_4S = 0b100000, PAUSE_8S = 0b100001,
+};
+
+void energySaveMode(uint8_t timeMode) {
+	MCUSR = 0;                          // reset various flags
+	WDTCSR |= (1 << WDCE) | (1 << WDE) | (1 << WDIE);               // see docs, set WDCE, WDE
+	WDTCSR = (1 << WDIE) | timeMode;    // set WDIE, and appropriate delay
+	//wdt_enable(timeMode);
+	wdt_reset();
+	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+	sleep_mode()
+	;            // now goes to Sleep and waits for the interrupt
+}
+
+void energySaveModeOneMinute(){
+	for(int i=0;i<7;++i)
+	{
+		energySaveMode(PAUSE_8S);
+	}
+	energySaveMode(PAUSE_4S);
 }
 
 #ifdef MASTER
@@ -34,15 +78,15 @@ ISR(TIMER0_COMPA_vect) { //przerwanie co ~1ms
 //--------------------------------------------------------------------------------------------------------
 int main(void) {
 	//setAllPins();
-	initUART(MYUBRR);//inicjalizacja USART
+	initUART(MYUBRR); //inicjalizacja USART
 	initTactSwitchAddSensor();
 	initTactSwitchResetEeprom();
-	initSPI();//inicjalizacja magistrali SPI
-	initRFM();//inicjalizacja układ RFM12B
-	initCtcTimer0(16);//inicjalizacja timera0 w trybie CTC, czas przerwania ~1ms;
-	 ACSR |= (1<<ACD);
-	 WDTCSR = 0x00;
-	 EICRA&= ~((1 << ISC01) | (1 << ISC00));
+	initSPI(); //inicjalizacja magistrali SPI
+	initRFM(); //inicjalizacja układ RFM12B
+	initCtcTimer0(16); //inicjalizacja timera0 w trybie CTC, czas przerwania ~1ms;
+	ACSR |= (1 << ACD);
+	//WDTCSR = 0x00;
+	EICRA &= ~((1 << ISC01) | (1 << ISC00));
 
 	char text[100];
 	uint8_t size = getHexFromEeprom();
@@ -50,14 +94,20 @@ int main(void) {
 	uint8_t address = 0;
 	uint8_t length = 0;
 
-	Rfm_xmit(SYNC_PATTERN | MASTER_ADDR);//ustawiamy programowalny bajt synchronizacji
+	Rfm_xmit(SYNC_PATTERN | MASTER_ADDR); //ustawiamy programowalny bajt synchronizacji
 	Rfm_rx_prepare();
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sei();
 	//włączamy przerwania
-	uartSendString("\r\n\r\nRFM12B - MASTER\r\n");//wyświetlamy powitanie
+	wdt_enable(WDTO_2S);
+
+	uartSendString("\r\n\r\nRFM12B - MASTER\r\n"); //wyświetlamy powitanie
 
 	while (1) {
+		if (timerWD >= 1500) {
+			timerWD = 0;
+			wdt_reset();
+		}
 		if (clickedSwitch(CLEAN) && size != 0) {
 			writeStringToEeprom("00");
 			size = getHexFromEeprom();
@@ -67,14 +117,13 @@ int main(void) {
 		}
 
 		if (clickedSwitch(ADD_SENSOR)) {
-			EIMSK |= (1 << INT0);
+			//EIMSK |= (1 << INT0);
 			uartSendString("sleep\r\n");
 			pause(2);
-			//cli();
-			sleep_mode();
-			//EIMSK &= ~(1 << INT0);
-		    //sei();
+			energySaveModeOneMinute();
 			uartSendString("pospane\r\n");
+			wdt_enable(WDTO_2S);
+			wdt_reset();
 		}
 		//uartSendString("wake up\r\n");
 
@@ -103,8 +152,7 @@ int main(void) {
 				strncpy(strAddress, (char*) rx_buf, 2);
 				strAddress[2] = 0;
 				address = strtol(strAddress, NULL, 16);
-				if(address!=0x00)
-				{
+				if (address != 0x00) {
 					sprintf(bufor, "Adres: %d ", address);	//,(char*)(rx_buf+2));
 					uartSendString(bufor);
 					uartSendString("Temperatura:");
@@ -126,29 +174,29 @@ volatile uint8_t tick_flag = 0;
 char newBufor[67];
 
 ISR(TIMER1_COMPA_vect) {				//przerwanie co ~750ms
-	tick_flag = 1;				//ustawia flagę odmierzenia tego czasu
+	tick_flag = 1;//ustawia flagę odmierzenia tego czasu
 }
 
 int main(void) {
 	setAllPins();
 	initTactSwitchResetEeprom();
 	initSPI(); //inicjalizacja magistrali SPI
-	initRFM(); //wstępna konfiguracja układu RFM12B
+	initRFM();//wstępna konfiguracja układu RFM12B
 	initUART(MYUBRR);
 	initCtcTimer1(11800);
 	initCtcTimer0(16);
 	resetDS18B20();
 
-	uint8_t address = getHexFromEeprom(); // domyślnie każdy układ powinien miec 0x00 w EEPROM//TODO: popraw eeprom
+	uint8_t address = getHexFromEeprom();// domyślnie każdy układ powinien miec 0x00 w EEPROM//TODO: popraw eeprom
 	char strAddress[3];
 	uintToString(address, strAddress);
 	uint8_t length = 0;
 
-	Rfm_xmit(SYNC_PATTERN | address); //ustawiamy programowalny bajt synchronizacji
+	Rfm_xmit(SYNC_PATTERN | address);//ustawiamy programowalny bajt synchronizacji
 
 	sei();
 //włączamy gobalny system przerwań.
-	uartSendString("\r\n\r\nRFM12B - SLAVE\r\n"); //wyświetlamy powitanie
+	uartSendString("\r\n\r\nRFM12B - SLAVE\r\n");//wyświetlamy powitanie
 	while (1) {
 		if (clickedSwitch(CLEAN) && address != 0x00) {
 			writeStringToEeprom("00");
