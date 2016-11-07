@@ -61,10 +61,14 @@ void energySaveMode(uint8_t timeMode) {
 }
 
 void energySaveModeOneMinute() {
-	for (int i = 0; i < 7; ++i) {
+	for (int i = 0; i < 2; ++i) {
 		energySaveMode(PAUSE_8S);
+		PRR &= ~(1 << PRTIM0);
+		if (clickedSwitch(CLEAN)) {
+			break;
+		}
+		PRR |= (1 << PRTIM0);
 	}
-	energySaveMode(PAUSE_4S);
 }
 
 #ifdef MASTER
@@ -80,8 +84,6 @@ int main(void) {
 	initRFM();//inicjalizacja układ RFM12B
 	initCtcTimer0(16);//inicjalizacja timera0 w trybie CTC, czas przerwania ~1ms;
 	ACSR |= (1 << ACD);
-	//WDTCSR = 0x00;
-	EICRA &= ~((1 << ISC01) | (1 << ISC00));
 
 	char text[100];
 	uint8_t size = getHexFromEeprom();
@@ -110,17 +112,6 @@ int main(void) {
 			uartSendString(text);
 			pause(200);
 		}
-
-		if (clickedSwitch(ADD_SENSOR)) {
-			//EIMSK |= (1 << INT0);
-			uartSendString("sleep\r\n");
-			pause(2);
-			energySaveModeOneMinute();
-			uartSendString("pospane\r\n");
-			wdt_enable(WDTO_2S);
-			wdt_reset();
-		}
-		//uartSendString("wake up\r\n");
 
 		receiveRFM12B(MASTER_ADDR, rx_buf, &length);
 		if (length != 0) {
@@ -168,21 +159,21 @@ int main(void) {
 volatile uint8_t tick_flag = 0;
 char newBufor[67];
 
-/*ISR(TIMER1_COMPA_vect) {				//przerwanie co ~750ms
+ISR(TIMER1_COMPA_vect) {				//przerwanie co ~750ms
 	tick_flag = 1;				//ustawia flagę odmierzenia tego czasu
-}*/
+}
 
 int main(void) {
-	setAllPins();
+	//setAllPins(); //TODO: tu jest jakiś problem
 	initTactSwitchResetEeprom();
 	initSPI(); //inicjalizacja magistrali SPI
 	initRFM(); //wstępna konfiguracja układu RFM12B
 	initUART(MYUBRR);
-	//initCtcTimer1(11800);
+	initCtcTimer1(11800);
 	initCtcTimer0(16);
 	resetDS18B20();
 	ACSR |= (1 << ACD);
-	ADCSRA &=~(1<<ADEN);
+	ADCSRA &= ~(1 << ADEN);
 
 	uint8_t address = getHexFromEeprom(); // domyślnie każdy układ powinien miec 0x00 w EEPROM
 	char strAddress[3];
@@ -197,11 +188,13 @@ int main(void) {
 
 	uartSendString("\r\n\r\nRFM12B - SLAVE\r\n"); //wyświetlamy powitanie
 	while (1) {
-		if (timerWD >= 1500) {
+		if (timerWD >= 100) {
 			timerWD = 0;
 			wdt_reset();
 		}
+		//uartSendString(strAddress);
 		if (clickedSwitch(CLEAN) && address != 0x00) {
+			//uartSendString("1a\r\n");
 			writeStringToEeprom("00");
 			address = 0x00;
 			Rfm_xmit(SYNC_PATTERN | address);
@@ -209,30 +202,33 @@ int main(void) {
 			uartSendString("reset\r\n");
 			pause(500);
 		}
-
+		//uartSendString("2\r\n");
 		cli();
-		tick_flag = 0;
-		ok = temperatureMeasurment(bufor);
-		//uartSendString(bufor);
+		if (tick_flag) { //wykonamy te instrukcje co 750ms
+			tick_flag = 0;
+			ok = temperatureMeasurment(bufor);
+		}
 		sei();
-
+		//uartSendString("3\r\n");
 		if (ok && address != 0) {
 			sprintf(newBufor, "%s%s", strAddress, bufor);
 			uartSendString(newBufor);
 			uartSendString("\r\n");
+			//	uartSendString("3aa\r\n");
 			sendRFM12B(MASTER_ADDR, newBufor);
-			//pause(60000); //i czekamy przed kolejnym wysłaniem temperatury
-			//uartSendString("sleep\r\n");
-			//pause(2);
-			PRR|=(1<<PRTWI)|(1<<PRTIM2)|(1<<PRTIM0)|(1<<PRTIM1)|(1<<PRSPI)|(1<<PRUSART0)|(1<<PRADC);
+
+			PRR |= (1 << PRTWI) | (1 << PRTIM2) | (1 << PRTIM0) | (1 << PRTIM1) | (1 << PRSPI) | (1 << PRUSART0)
+						| (1 << PRADC);
 			energySaveModeOneMinute();
-			PRR&=~(1<<PRSPI);
-			PRR&=~(1<<PRUSART0);
-			PRR&=~(1<<PRTIM0);
+			PRR &= ~(1 << PRSPI);
+			PRR &= ~(1 << PRUSART0);
+			PRR &= ~(1 << PRTIM0);
+			PRR &= ~(1 << PRTIM1);
 			//uartSendString("pospane\r\n");
 			wdt_enable(WDTO_2S);
 			wdt_reset();
 		}
+		//uartSendString("4\r\n");
 		ok = 0;
 		bufor[0] = 0;
 		newBufor[0] = 0;
@@ -242,24 +238,29 @@ int main(void) {
 			sendRFM12B(MASTER_ADDR, newBufor);
 			ok = waitForReceive(address, rx_buf, &length, 'N', 500);
 			if (ok) {
+				//	uartSendString("4a\r\n");
 				char newAddress[3];
 				sprintf(newAddress, "%s", (char *) (rx_buf + 1));
 				writeStringToEeprom(newAddress);
 				address = (uint8_t) strtol(newAddress, NULL, 16);
+				//	uartSendString("4b\r\n");
 				uintToString(address, strAddress);
 				sprintf(newBufor, "O");
 				sendRFM12B(MASTER_ADDR, newBufor);
 				Rfm_xmit(SYNC_PATTERN | address);
 				length = 0;
 				ok = 0;
+				//	uartSendString("4c\r\n");
 			}
+			//	uartSendString("5\r\n");
 		}
+		//uartSendString("6\r\n");
 	}
 	return 0;
 }
 #else
 int main(void) {
-	writeStringToEeprom("00");
+	writeStringToEeprom("53");
 	return 0;
 }
 

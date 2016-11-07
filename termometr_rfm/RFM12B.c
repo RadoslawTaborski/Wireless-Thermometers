@@ -87,9 +87,9 @@ void initRFM(void){
 	//wy³¹czenie timera wakeup
 	Rfm_xmit(WAKEUP_TIM|WUT_X_2_0|0);
 	//wy³¹czenie oszczêdzania energii
-	Rfm_xmit(LOW_DC|LOW_DC_DIS);
+	//Rfm_xmit(LOW_DC|LOW_DC_DIS);
 	//ustawienie monitora napiêcia na 2,2V
-	Rfm_xmit(BOD_CLK|CLK_5_00|BOD_2_2);
+	Rfm_xmit(BOD_CLK|CLK_5_00|BOD_3_4);
 }
 
 uint8_t Rfm_ready_wait(void){
