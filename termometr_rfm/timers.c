@@ -20,15 +20,6 @@ void initCtcTimer1(uint16_t val) {
 	TIMSK1 |= (1 << OCIE1A); //zezwolenie na przerwanie od ocr1A
 }
 
-/*void initCtcTimer2(uint8_t val) {
-	TCCR2A |= (1 << WGM21);
-	TCCR2B |=
-
-	TCCR1B |= (1 << WGM12) | (1 << CS10) | (1 << CS12); //timer 1 - tryb ctc - /1024
-	OCR1A = val; //wartoœæ dla przerwania co oko³o 755ms
-	TIMSK1 |= (1 << OCIE1A); //zezwolenie na przerwanie od ocr1A
-}*/
-
 void pause(uint16_t ms) {
 	timer0 = 0;
 	while (timer0 < ms)
